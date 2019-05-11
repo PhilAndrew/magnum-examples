@@ -57,6 +57,10 @@
 #include <Magnum/SceneGraph/Camera.h>
 #include <Magnum/SceneGraph/Drawable.h>
 
+// /home/philip/home/projects/magnum/magnum-examples/ultralight-sdk-1.0-linux/include
+#include <Ultralight/Ultralight.h>
+#include <Ultralight/platform/GPUDriver.h>
+ 
 namespace Magnum { namespace Examples {
 
 using namespace Magnum::Math::Literals;
@@ -266,6 +270,18 @@ PickingExample::PickingExample(const Arguments& arguments): Platform::Applicatio
     _camera->setAspectRatioPolicy(SceneGraph::AspectRatioPolicy::Extend)
         .setProjectionMatrix(Matrix4::perspectiveProjection(35.0_degf, 4.0f/3.0f, 0.001f, 100.0f))
         .setViewport(GL::defaultFramebuffer.viewport().size());
+
+
+
+  // This code creates black screen  
+  using namespace ultralight;
+  platform.set_config(Config());
+  //platform.set_gpu_driver(new GPUDriverGL());
+  // Create the Renderer
+  Ref<Renderer> renderer = Renderer::Create();
+  // Create the View
+  Ref<View> view = renderer->CreateView(800, 600, false);
+  view->LoadHTML("<h1>Hello World!</h1>");      
 }
 
 void PickingExample::drawEvent() {
