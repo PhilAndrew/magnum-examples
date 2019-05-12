@@ -68,6 +68,8 @@
 #include <iostream>
 using namespace std;
 
+#include "cBroadcastServer.h"
+
 namespace Magnum { namespace Examples {
 
 using namespace Magnum::Math::Literals;
@@ -420,12 +422,13 @@ void PickingExample::drawEvent() {
   glCopyTexImage2D(GL_TEXTURE_2D,0,GL_RGB,0,0,width,height,0);
 
   std::vector<uint8_t> compressed(width * height * 4);
-  cout << "serverColorTex2 " << serverColorTex2 << endl;
+  //cout << "serverColorTex2 " << serverColorTex2 << endl;
   uint64_t size = NvPipe_EncodeTexture(encoder, serverColorTex2, GL_TEXTURE_2D, compressed.data(), compressed.size(), width, height, false);
    if (0 == size)
             std::cerr << "Encode error: " << NvPipe_GetError(encoder) << std::endl;
 
-  cout << size << " size on left " << compressed.size() << endl;
+  cout << " compressed size " << size << endl;
+  //cout << size << " size on left " << compressed.size() << endl;
   glDeleteTextures(1, &serverColorTex2);
 
   GLuint clientColorTex;
@@ -437,8 +440,7 @@ void PickingExample::drawEvent() {
   uint64_t r = NvPipe_DecodeTexture(decoder, compressed.data(), size, clientColorTex, GL_TEXTURE_2D, width, height);
    if (0 == r)
             std::cerr << "Encode error: " << NvPipe_GetError(decoder) << std::endl;  
-  cout << r << endl;
-  captureFramebufferPPM(clientColorTex, width, height, "egl-input.ppm");
+  //captureFramebufferPPM(clientColorTex, width, height, "egl-input.ppm");
 
   glDeleteTextures(1, &clientColorTex);
 
