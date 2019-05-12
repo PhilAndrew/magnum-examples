@@ -1,3 +1,24 @@
+
+Philip: checkout the nvpipe branch
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Here are various examples for the Magnum C++11/C++14 graphics engine,
 demonstrating its features, usage and capabilities.
 
