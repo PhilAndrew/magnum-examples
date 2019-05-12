@@ -61,6 +61,13 @@
 #include <Ultralight/Ultralight.h>
 #include <Ultralight/platform/GPUDriver.h>
  
+#include <NvPipe.h>
+// /usr/local/cuda
+#include <cuda_runtime_api.h>
+#include <fstream>
+#include <iostream>
+using namespace std;
+
 namespace Magnum { namespace Examples {
 
 using namespace Magnum::Math::Literals;
@@ -181,6 +188,8 @@ class PickingExample: public Platform::Application {
         void mouseMoveEvent(MouseMoveEvent& event) override;
         void mouseReleaseEvent(MouseEvent& event) override;
 
+        NvPipe* encoder;
+        NvPipe* decoder;
         Scene3D _scene;
         Object3D* _cameraObject;
         SceneGraph::Camera3D* _camera;
@@ -274,17 +283,93 @@ PickingExample::PickingExample(const Arguments& arguments): Platform::Applicatio
 
 
   // This code creates black screen  
-  using namespace ultralight;
+  /*using namespace ultralight;
   platform.set_config(Config());
   //platform.set_gpu_driver(new GPUDriverGL());
   // Create the Renderer
   Ref<Renderer> renderer = Renderer::Create();
   // Create the View
   Ref<View> view = renderer->CreateView(800, 600, false);
-  view->LoadHTML("<h1>Hello World!</h1>");      
+  view->LoadHTML("<h1>Hello World!</h1>");      */
+
+    // Create encoder
+    int width = 100;
+    int height = 100;
+
+    const NvPipe_Codec codec = NVPIPE_H264;
+    const float bitrateMbps = 32.0f;
+    const uint32_t targetFPS = 90;
+
+    encoder = NvPipe_CreateEncoder(NVPIPE_RGBA32, codec, NVPIPE_LOSSY, bitrateMbps * 1000 * 1000, targetFPS, width, height);
+
+
+    decoder = NvPipe_CreateDecoder(NVPIPE_RGBA32, codec, width, height);
+    //if (!encoder)
+        //std::cerr << "Failed to create encoder: " << NvPipe_GetError(NULL) << std::endl;
+
 }
 
+
+
+
+void savePPM(uint8_t* rgba, uint32_t width, uint32_t height, const std::string& path)
+{
+    // Convert to RGB
+    std::vector<uint8_t> rgb(width * height * 3);
+    for (uint32_t i = 0; i < width * height; ++i)
+        for (uint32_t j = 0; j < 3; ++j)
+            rgb[3 * i + j] = rgba[4 * i + j];
+
+    // Write PPM
+    std::ofstream outFile;
+    outFile.open(path.c_str(), std::ios::binary);
+
+    outFile << "P6" << "\n"
+            << width << " " << height << "\n"
+            << "255\n";
+
+    outFile.write((char*) rgb.data(), rgb.size());
+}
+
+
+void captureFramebufferPPM(GLuint framebuffer, uint32_t width, uint32_t height, const std::string& path)
+{
+    std::vector<uint8_t> rgba(width * height * 4);
+
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer);
+    glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, rgba.data());
+
+    savePPM(rgba.data(), width, height, path);
+}
+/*
+// Assumes the two textures are the same dimensions
+void copyFrameBufferTexture(int width, int height, int fboIn, int textureIn, int fboOut, int textureOut)
+{
+    // Bind input FBO + texture to a color attachment
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, fboIn);
+    glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureIn, 0);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+
+    // Bind destination FBO + texture to another color attachment
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fboOut);
+    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, textureOut, 0);
+    glDrawBuffer(GL_COLOR_ATTACHMENT1);
+
+    // specify source, destination drawing (sub)rectangles.
+    glBlitFramebuffer(0, 0, width, height,
+                        0, 0, width, height,
+                        GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+    // unbind the color attachments
+    //glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, 0, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
+}
+*/
+
 void PickingExample::drawEvent() {
+
+
+
     /* Draw to custom framebuffer */
     _framebuffer
         .clearColor(0, Color3{0.125f})
@@ -292,6 +377,24 @@ void PickingExample::drawEvent() {
         .clearDepth(1.0f)
         .bind();
     _camera->draw(_drawables);
+
+
+
+
+    //cout << size;
+
+
+
+    /*GLuint clientColorTex;
+    glGenTextures(1, &clientColorTex);
+    glBindTexture(GL_TEXTURE_2D, clientColorTex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0); // must use RGBA(8) here for CUDA-GL interop
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+
+*/
+
 
     /* Bind the main buffer back */
     GL::defaultFramebuffer.clear(GL::FramebufferClear::Color|GL::FramebufferClear::Depth)
@@ -303,6 +406,42 @@ void PickingExample::drawEvent() {
         {{}, _framebuffer.viewport().size()}, GL::FramebufferBlit::Color);
 
     swapBuffers();
+
+
+
+  GLuint serverColorTex;
+  serverColorTex = _framebuffer.id();
+  int width = 256;
+  int height = 256;
+
+  GLuint serverColorTex2;
+  glGenTextures(1, &serverColorTex2);
+  glBindTexture(GL_TEXTURE_2D, serverColorTex2);
+  glCopyTexImage2D(GL_TEXTURE_2D,0,GL_RGB,0,0,width,height,0);
+
+  std::vector<uint8_t> compressed(width * height * 4);
+  cout << "serverColorTex2 " << serverColorTex2 << endl;
+  uint64_t size = NvPipe_EncodeTexture(encoder, serverColorTex2, GL_TEXTURE_2D, compressed.data(), compressed.size(), width, height, false);
+   if (0 == size)
+            std::cerr << "Encode error: " << NvPipe_GetError(encoder) << std::endl;
+
+  cout << size << " size on left " << compressed.size() << endl;
+  glDeleteTextures(1, &serverColorTex2);
+
+  GLuint clientColorTex;
+  glGenTextures(1, &clientColorTex);
+  glBindTexture(GL_TEXTURE_2D, clientColorTex);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0); // must use RGBA(8) here for CUDA-GL interop
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  uint64_t r = NvPipe_DecodeTexture(decoder, compressed.data(), size, clientColorTex, GL_TEXTURE_2D, width, height);
+   if (0 == r)
+            std::cerr << "Encode error: " << NvPipe_GetError(decoder) << std::endl;  
+  cout << r << endl;
+  captureFramebufferPPM(clientColorTex, width, height, "egl-input.ppm");
+
+  glDeleteTextures(1, &clientColorTex);
+
 }
 
 void PickingExample::mousePressEvent(MouseEvent& event) {

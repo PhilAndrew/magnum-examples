@@ -29,6 +29,10 @@
 
 cmake_minimum_required(VERSION 3.1)
 
+include_directories(MagnumPickingExample PRIVATE "/usr/local/cuda-10.1/include")
+
+link_directories(AFTER "/usr/local/cuda-10.1/lib64")
+
 find_package(Magnum REQUIRED
     GL
     MeshTools
@@ -38,7 +42,7 @@ find_package(Magnum REQUIRED
 
 project(MagnumPickingExample)
 
-link_libraries(UltralightCore AppCore Ultralight WebCore)
+link_libraries(NvPipe UltralightCore AppCore Ultralight WebCore)
 
 # Add module path in case this is project root
 if(PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
